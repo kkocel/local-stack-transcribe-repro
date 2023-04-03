@@ -36,6 +36,7 @@ import software.amazon.awssdk.services.transcribe.model.LanguageCode
 import software.amazon.awssdk.services.transcribe.model.Media
 import software.amazon.awssdk.services.transcribe.model.MediaFormat
 import software.amazon.awssdk.services.transcribe.model.StartTranscriptionJobRequest
+import software.amazon.awssdk.services.transcribe.model.StartTranscriptionJobResponse
 import software.amazon.awssdk.services.transcribe.model.TranscriptionJobStatus.COMPLETED
 import java.net.URI
 import java.nio.ByteBuffer
@@ -61,13 +62,17 @@ class AmazonTranscriptionRequester(
             connectionProviderName = "mp3-retriever",
             pendingMaxCount = PENDING_ACQUISITION_MAX_COUNT,
             pendingAcquireTimeout = PENDING_ACQUIRE_TIMEOUT,
-            idleTimeoutSeconds = 10
+            idleTimeoutSeconds = 240,
+            writeTimeout = WRITE_TIMEOUT.toInt(),
+            readTimeout = READ_TIMEOUT
         )
 
     private val transcribeClient: TranscribeAsyncClient =
         TranscribeAsyncClient.builder().httpClient(
             NettyNioAsyncHttpClient.builder()
+                .writeTimeout(Duration.ofSeconds(WRITE_TIMEOUT))
                 .readTimeout(Duration.ofSeconds(READ_TIMEOUT))
+                .connectionMaxIdleTime(Duration.ofSeconds(IDLE_TIMEOUT))
                 .maxConcurrency(MAX_CONNECTIONS)
                 .build()
         )
@@ -94,7 +99,9 @@ class AmazonTranscriptionRequester(
 
     val s3Client: S3AsyncClient = S3AsyncClient.builder().httpClient(
         NettyNioAsyncHttpClient.builder()
+            .writeTimeout(Duration.ofSeconds(WRITE_TIMEOUT))
             .readTimeout(Duration.ofSeconds(READ_TIMEOUT))
+            .connectionMaxIdleTime(Duration.ofSeconds(IDLE_TIMEOUT))
             .maxConcurrency(MAX_CONNECTIONS)
             .build()
     )
@@ -128,7 +135,7 @@ class AmazonTranscriptionRequester(
         jobName: String,
         s3Location: String,
         outputKey: String
-    ): Mono<String> {
+    ): Mono<StartTranscriptionJobResponse> {
         return transcribeClient.startTranscriptionJob(
             StartTranscriptionJobRequest.builder()
                 .transcriptionJobName(jobName)
@@ -140,7 +147,6 @@ class AmazonTranscriptionRequester(
                 .media(Media.builder().mediaFileUri(s3Location).build())
                 .build()
         ).toMono()
-            .map { it.transcriptionJob().transcriptionJobStatus().name }
     }
 
     fun getTranscriptIfCompleted(jobName: String, transcriptionOutputKey: String): Mono<String> {
@@ -251,7 +257,9 @@ class AmazonTranscriptionRequester(
 
     companion object {
         const val AWS_TIMEOUT = 340L
-        const val READ_TIMEOUT = 5L
+        const val READ_TIMEOUT = 240L
+        const val WRITE_TIMEOUT = 240L
+        const val IDLE_TIMEOUT = 240L
         const val MAX_CONNECTIONS = 256
         const val PENDING_ACQUISITION_MAX_COUNT = -1
         const val PENDING_ACQUIRE_TIMEOUT = 180000L

@@ -2,8 +2,7 @@ package com.example.localstacktranscriberepro
 
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.github.dockerjava.api.command.CreateContainerCmd
-import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldNotStartWith
 import org.junit.jupiter.api.Test
 import org.springframework.web.reactive.function.client.WebClient
@@ -22,12 +21,12 @@ import software.amazon.awssdk.services.s3.model.CreateBucketRequest
 class AmazonTranscriptionRequesterTest {
 
     @Container
-    val localstack: LocalStackContainer = LocalStackContainer(DockerImageName.parse("localstack/localstack"))
-        .withServices(
-            Service.S3,
-            EnabledService.named("transcribe")
-        )
-        .withCreateContainerCmdModifier { it: CreateContainerCmd -> it.withPlatform("linux/x86_64") }
+    val localstack: LocalStackContainer =
+        LocalStackContainer(DockerImageName.parse("localstack/localstack:latest-amd64"))
+            .withServices(
+                Service.S3,
+                EnabledService.named("transcribe")
+            )
 
     @Test
     fun `get file from internet and save it to s3`() {
@@ -65,7 +64,7 @@ class AmazonTranscriptionRequesterTest {
                 outputKey = "output-transcription"
             ).block()
 
-        trscptRsp shouldBe ""
+        trscptRsp?.transcriptionJob() shouldNotBe null
 
         requester.getTranscriptIfCompleted(jobName = name, transcriptionOutputKey = "output-transcription")
             .block() shouldNotStartWith "https://"

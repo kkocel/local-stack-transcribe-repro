@@ -43,7 +43,6 @@ dependencies {
     implementation("software.amazon.awssdk:s3")
     implementation("software.amazon.awssdk:netty-nio-client")
     implementation("software.amazon.awssdk:transcribe")
-
 }
 
 dependencyManagement {
