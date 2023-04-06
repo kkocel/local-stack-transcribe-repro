@@ -2,30 +2,20 @@ package com.example.localstacktranscriberepro
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
-import io.netty.handler.logging.LogLevel
-import io.netty.handler.timeout.ReadTimeoutHandler
-import io.netty.handler.timeout.WriteTimeoutHandler
 import mu.KotlinLogging
-import org.reactivestreams.Subscriber
-import org.springframework.http.client.reactive.ReactorClientHttpConnector
 import org.springframework.web.reactive.function.client.WebClient
-import org.springframework.web.reactive.function.client.bodyToFlux
 import reactor.core.publisher.Mono
 import reactor.kotlin.core.publisher.toMono
-import reactor.netty.http.client.HttpClient
-import reactor.netty.resources.ConnectionProvider
-import reactor.netty.transport.logging.AdvancedByteBufFormat
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider
 import software.amazon.awssdk.core.ResponseBytes
-import software.amazon.awssdk.core.async.AsyncRequestBody
 import software.amazon.awssdk.core.async.AsyncResponseTransformer
+import software.amazon.awssdk.core.internal.async.FileAsyncRequestBody
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient
 import software.amazon.awssdk.metrics.MetricCollection
 import software.amazon.awssdk.metrics.MetricPublisher
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.s3.S3AsyncClient
 import software.amazon.awssdk.services.s3.S3Configuration
-import software.amazon.awssdk.services.s3.model.DeleteObjectRequest
 import software.amazon.awssdk.services.s3.model.GetObjectRequest
 import software.amazon.awssdk.services.s3.model.GetObjectResponse
 import software.amazon.awssdk.services.s3.model.PutObjectRequest
@@ -39,9 +29,8 @@ import software.amazon.awssdk.services.transcribe.model.StartTranscriptionJobReq
 import software.amazon.awssdk.services.transcribe.model.StartTranscriptionJobResponse
 import software.amazon.awssdk.services.transcribe.model.TranscriptionJobStatus.COMPLETED
 import java.net.URI
-import java.nio.ByteBuffer
+import java.nio.file.Paths
 import java.time.Duration
-import java.util.Optional
 
 @Suppress("LongParameterList")
 class AmazonTranscriptionRequester(
@@ -54,18 +43,6 @@ class AmazonTranscriptionRequester(
     private val objectMapper: ObjectMapper
 ) {
     private val logger = KotlinLogging.logger("pp.transcription.amazon")
-
-    private val webclient =
-        webClient(
-            webClientBuilder = webClientBuilder,
-            verboseLogging = false,
-            connectionProviderName = "mp3-retriever",
-            pendingMaxCount = PENDING_ACQUISITION_MAX_COUNT,
-            pendingAcquireTimeout = PENDING_ACQUIRE_TIMEOUT,
-            idleTimeoutSeconds = 240,
-            writeTimeout = WRITE_TIMEOUT.toInt(),
-            readTimeout = READ_TIMEOUT
-        )
 
     private val transcribeClient: TranscribeAsyncClient =
         TranscribeAsyncClient.builder().httpClient(
@@ -177,83 +154,20 @@ class AmazonTranscriptionRequester(
     private data class TranscriptionResult(val transcripts: List<Transcript>)
     private data class Transcript(val transcript: String)
 
-    fun storeFileOnS3(fileKey: String, fileUrl: String): Mono<Void> {
-        return webclient
-            .get()
-            .uri(fileUrl)
-            .exchangeToMono {
-                s3Client.putObject(
-                    PutObjectRequest.builder()
-                        .key(fileKey)
-                        .bucket(s3bucket).build(),
-                    object : AsyncRequestBody {
-                        override fun subscribe(s: Subscriber<in ByteBuffer>) {
-                            it.bodyToFlux<ByteBuffer>().subscribe(s)
-                        }
-
-                        override fun contentLength(): Optional<Long> {
-                            val contentLength = it.headers().contentLength()
-                            return Optional.ofNullable<Long>(
-                                if (contentLength.isPresent) {
-                                    contentLength.asLong
-                                } else {
-                                    null
-                                }
-                            )
-                        }
-                    }
-                ).toMono().then()
-            }
-    }
-
-    fun removeFileFromS3(fileKey: String): Mono<Void> =
-        s3Client.deleteObject(
-            DeleteObjectRequest.builder().bucket(s3bucket).key(fileKey).build()
+    fun storeFileOnS3(fileKey: String): Mono<Void> {
+        return s3Client.putObject(
+            PutObjectRequest.builder()
+                .key(fileKey)
+                .bucket(s3bucket).build(),
+            FileAsyncRequestBody.builder().path(Paths.get(
+                "src",
+                "test",
+                "resources",
+                "sfx-words-yes.mp3"
+            ))
+                .build()
         ).toMono().then()
-
-    @Suppress("LongParameterList")
-    private fun webClient(
-        webClientBuilder: WebClient.Builder,
-        verboseLogging: Boolean,
-        baseUrl: String? = null,
-        connectionProviderName: String,
-        pendingMaxCount: Int,
-        connectTimeout: Long = 5,
-        readTimeout: Long = 5,
-        writeTimeout: Int = 5,
-        pendingAcquireTimeout: Long = ConnectionProvider.DEFAULT_POOL_ACQUIRE_TIMEOUT,
-        idleTimeoutSeconds: Long = AWS_TIMEOUT
-    ): WebClient = webClientBuilder.build().mutate().clientConnector(
-        ReactorClientHttpConnector(
-            HttpClient.create(
-                ConnectionProvider.builder(connectionProviderName)
-                    .maxIdleTime(Duration.ofSeconds(idleTimeoutSeconds))
-                    .maxConnections(ConnectionProvider.DEFAULT_POOL_MAX_CONNECTIONS)
-                    .pendingAcquireMaxCount(pendingMaxCount)
-                    .pendingAcquireTimeout(Duration.ofMillis(pendingAcquireTimeout))
-                    .metrics(true)
-                    .build()
-            ).followRedirect(true).apply {
-                if (verboseLogging) {
-                    wiretap(
-                        "reactor.netty.http.client.HttpClient",
-                        LogLevel.DEBUG,
-                        AdvancedByteBufFormat.TEXTUAL
-                    )
-                }
-            }.responseTimeout(Duration.ofSeconds(connectTimeout))
-                .doOnConnected { connection ->
-                    connection.addHandlerLast(ReadTimeoutHandler(readTimeout.toInt()))
-                        .addHandlerLast(WriteTimeoutHandler(writeTimeout))
-                }
-        )
-    )
-        .apply {
-            if (baseUrl != null) {
-                it.baseUrl(baseUrl)
-            }
-        }
-        .build()
+    }
 
     companion object {
         const val AWS_TIMEOUT = 340L

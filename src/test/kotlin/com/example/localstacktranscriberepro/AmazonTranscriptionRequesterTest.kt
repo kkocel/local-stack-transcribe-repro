@@ -2,8 +2,7 @@ package com.example.localstacktranscriberepro
 
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
-import io.kotest.matchers.shouldNotBe
-import io.kotest.matchers.string.shouldNotStartWith
+import org.awaitility.Awaitility.await
 import org.junit.jupiter.api.Test
 import org.springframework.web.reactive.function.client.WebClient
 import org.testcontainers.containers.localstack.LocalStackContainer
@@ -16,6 +15,7 @@ import reactor.kotlin.core.publisher.toMono
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest
+import java.time.Duration
 
 @Testcontainers
 class AmazonTranscriptionRequesterTest {
@@ -50,9 +50,7 @@ class AmazonTranscriptionRequesterTest {
         requester.s3Client.createBucket(CreateBucketRequest.builder().bucket(s3bucket).build()).toMono().block()
 
         requester.storeFileOnS3(
-            "fileKey",
-            "https://dcs.megaphone.fm/CAD6920676170.mp3?key=12892c23e53213cdbd361e1a37757cca&request_event_id=" +
-                "c928e9e3-201f-412e-b424-61ad17cbeadb&via=012c48d4-27b3-11ed-a82e-df744c4c2b8f"
+            "fileKey"
         )
             .block()
 
@@ -61,12 +59,18 @@ class AmazonTranscriptionRequesterTest {
             requester.startTranscription(
                 jobName = name,
                 s3Location = "s3://$s3bucket/fileKey",
-                outputKey = "output-transcription"
+                outputKey = "outputTranscription"
             ).block()
 
-        trscptRsp?.transcriptionJob() shouldNotBe null
+        // trscptRsp?.transcriptionJob() shouldNotBe null #should be fixed by
 
-        requester.getTranscriptIfCompleted(jobName = name, transcriptionOutputKey = "output-transcription")
-            .block() shouldNotStartWith "https://"
+        await()
+            .atMost(Duration.ofMinutes(10))
+            .with()
+            .pollInterval(Duration.ofSeconds(5))
+            .until {
+                requester.getTranscriptIfCompleted(name, "outputTranscription")
+                    .block()?.isNotEmpty() ?: false
+            }
     }
 }

@@ -1,5 +1,6 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
+val awaitilityVersion = "4.2.0"
 val awsSdkVersion = "2.20.29"
 val kotlinLoggingVersion = "3.0.5"
 val kotlinTestVersion = "5.5.5"
@@ -35,6 +36,7 @@ dependencies {
     testImplementation("org.testcontainers:junit-jupiter:$testContainersVersion")
     testImplementation("io.kotest:kotest-runner-junit5:$kotlinTestVersion")
     testImplementation("io.kotest:kotest-assertions-core:$kotlinTestVersion")
+    testImplementation("org.awaitility:awaitility-kotlin:$awaitilityVersion")
     testImplementation("org.testcontainers:localstack:$testContainersVersion")
     implementation(platform("software.amazon.awssdk:bom:$awsSdkVersion"))
     testImplementation("com.amazonaws:aws-java-sdk-core:1.12.425") {
