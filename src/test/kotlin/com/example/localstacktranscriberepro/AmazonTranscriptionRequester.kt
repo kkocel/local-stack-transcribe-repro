@@ -3,7 +3,6 @@ package com.example.localstacktranscriberepro
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import mu.KotlinLogging
-import org.springframework.web.reactive.function.client.WebClient
 import reactor.core.publisher.Mono
 import reactor.kotlin.core.publisher.toMono
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider
@@ -34,7 +33,6 @@ import java.time.Duration
 
 @Suppress("LongParameterList")
 class AmazonTranscriptionRequester(
-    webClientBuilder: WebClient.Builder,
     region: String,
     credentialsProvider: AwsCredentialsProvider,
     s3endpointOverride: URI? = null,
@@ -159,12 +157,14 @@ class AmazonTranscriptionRequester(
             PutObjectRequest.builder()
                 .key(fileKey)
                 .bucket(s3bucket).build(),
-            FileAsyncRequestBody.builder().path(Paths.get(
-                "src",
-                "test",
-                "resources",
-                "sfx-words-yes.mp3"
-            ))
+            FileAsyncRequestBody.builder().path(
+                Paths.get(
+                    "src",
+                    "test",
+                    "resources",
+                    "sfx-words-yes.mp3"
+                )
+            )
                 .build()
         ).toMono().then()
     }
@@ -175,7 +175,5 @@ class AmazonTranscriptionRequester(
         const val WRITE_TIMEOUT = 240L
         const val IDLE_TIMEOUT = 240L
         const val MAX_CONNECTIONS = 256
-        const val PENDING_ACQUISITION_MAX_COUNT = -1
-        const val PENDING_ACQUIRE_TIMEOUT = 180000L
     }
 }

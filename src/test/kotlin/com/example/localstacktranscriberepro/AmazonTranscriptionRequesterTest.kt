@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.awaitility.Awaitility.await
 import org.junit.jupiter.api.Test
-import org.springframework.web.reactive.function.client.WebClient
 import org.testcontainers.containers.localstack.LocalStackContainer
 import org.testcontainers.containers.localstack.LocalStackContainer.EnabledService
 import org.testcontainers.containers.localstack.LocalStackContainer.Service
@@ -32,7 +31,6 @@ class AmazonTranscriptionRequesterTest {
     fun `get file from internet and save it to s3`() {
         val s3bucket = "kkocel-localstack-repro"
         val requester = AmazonTranscriptionRequester(
-            webClientBuilder = WebClient.builder(),
             region = localstack.region,
             credentialsProvider = StaticCredentialsProvider.create(
                 AwsBasicCredentials.create(
@@ -62,15 +60,17 @@ class AmazonTranscriptionRequesterTest {
                 outputKey = "outputTranscription"
             ).block()
 
-        // trscptRsp?.transcriptionJob() shouldNotBe null #should be fixed by
+//        trscptRsp?.transcriptionJob()?.transcriptionJobStatus().shouldBe(TranscriptionJobStatus.IN_PROGRESS)
 
         await()
             .atMost(Duration.ofMinutes(10))
             .with()
             .pollInterval(Duration.ofSeconds(5))
             .until {
-                requester.getTranscriptIfCompleted(name, "outputTranscription")
-                    .block()?.isNotEmpty() ?: false
+                val output = requester.getTranscriptIfCompleted(name, "outputTranscription")
+                    .block()
+                println("output: $output")
+                output?.isNotEmpty() ?: false
             }
     }
 }
