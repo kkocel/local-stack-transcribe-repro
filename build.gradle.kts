@@ -39,7 +39,7 @@ dependencies {
     testImplementation("org.awaitility:awaitility-kotlin:$awaitilityVersion")
     testImplementation("org.testcontainers:localstack:$testContainersVersion")
     implementation(platform("software.amazon.awssdk:bom:$awsSdkVersion"))
-    testImplementation("com.amazonaws:aws-java-sdk-core:1.12.479") {
+    testImplementation("com.amazonaws:aws-java-sdk-core:1.12.485") {
         exclude(group = "*", module = "*")
     }
     implementation("software.amazon.awssdk:s3")
