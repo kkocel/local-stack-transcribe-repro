@@ -1,7 +1,7 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 val awaitilityVersion = "4.2.0"
-val awsSdkVersion = "2.20.76"
+val awsSdkVersion = "2.20.88"
 val kotlinLoggingVersion = "3.0.5"
 val kotlinTestVersion = "5.6.2"
 val testContainersVersion = "1.18.3"
